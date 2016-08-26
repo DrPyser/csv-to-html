@@ -205,7 +205,7 @@ out:  resulting sxml for the month
 |#
 (define (gen-month-sxml/bilingual month-en month-fr days)
   `(div (@ (class "month"))
-        (h2 ,month-en " - " ,month-fr)
+        (h2 ,(string-upcase month-en) " - " ,(string-upcase month-fr))
         ,@days))
 
 #|
@@ -217,8 +217,8 @@ in: events: list: list of sxml data for the events on that day
 out: sxml data for the day
 |#
 (define (gen-day-sxml/bilingual day-fr day-num day-en events-sxml)
-  `(div (@ (class "date"))
-        (h3 ,day-fr " " ,(number->string day-num) " " ,day-en)
+  `(div (@ (class "day"))
+        (h3 ,(string-downcase day-fr) " " ,(number->string day-num) " " ,(string-titlecase day-en))
         (ul (@ (class "events-list")) ,@events-sxml)))
 
 #|
@@ -230,28 +230,29 @@ out: sxml data for the event
   (let* ([print-summary-french-accessor (get-field (hash-ref (fields-names) "print-summary-french"))]
          [print-summary-english-accessor (get-field (hash-ref (fields-names) "print-summary-english"))]
          [event-name-accessor (get-field (hash-ref (fields-names) "event-name"))]
-         [location-abbreviation-accessor (get-field (hash-ref (fields-names) "location-abbreviation"))]
-         [price-range-default (or (hash-ref (defaults) "price-range") "Free/Gratuit")]
-         [phone-number-default (or (hash-ref (defaults) "phone-number") "n.a.")]
+         [location-abbreviation-accessor (get-field (hash-ref (fields-names) "location-abbreviation"))]         
          [start-time-accessor (get-field (hash-ref (fields-names) "start-time"))]
          [start-date-accessor (get-field (hash-ref (fields-names) "start-date"))]
          [price-range-accessor (get-field (hash-ref (fields-names) "price-range"))]
          [phone-number-accessor (get-field (hash-ref (fields-names) "phone-number"))]
-         [print-summary (or (print-summary-french-accessor event);hope for a french summary
-                            (print-summary-english-accessor event);otherwise, use english summary
-                            (event-name-accessor event))];if neither french nor english summary, use event name
-         [location-abbreviation (location-abbreviation-accessor event)]
-         [start-time (start-time-accessor event)]
-         [price-range (or (price-range-accessor event) price-range-default)]
-         [phone-number (or (phone-number-accessor event) phone-number-default)])
+         [period (lambda (string) (and string (string-append string ". ")))]
+         [price-range-default (or (period (hash-ref (defaults) "price-range")) "")]
+         [phone-number-default (or (period (hash-ref (defaults) "phone-number")) "")]
+         [print-summary (period (or (print-summary-french-accessor event);hope for a french summary
+                                     (print-summary-english-accessor event);otherwise, use english summary
+                                     (event-name-accessor event)))];if neither french nor english summary, use event name
+         [location-abbreviation (period (location-abbreviation-accessor event))]
+         [start-time (period (~t (start-time-accessor event) "h'h'mm a"))]
+         [price-range (or (period (price-range-accessor event)) price-range-default)]
+         [phone-number (or (period (phone-number-accessor event)) phone-number-default)])
     `(li (@ (class "event-item"))
          (p (span (@ (class "item-marker") (style "font-family:FFDingbests")) ">")
           (span (@ (class "event-info"))
-                (span (@ (class "event-time")) ,(~t start-time "h'h'mm a")) ". "
-                (span (@ (class "location-id")) ,location-abbreviation) ". "
-                ;(span (@ (class "event-price")) ,price-range) ". "
-                (span (@ (class "event-summary")) (i ,print-summary)) ". "
-                (span (@ (class "event-phone-number")) ,phone-number) ". ")))
+                (span (@ (class "event-time")) ,start-time)
+                (span (@ (class "location-id")) ,location-abbreviation)
+                (span (@ (class "event-price")) ,price-range)
+                (span (@ (class "event-summary")) (i ,print-summary))
+                (span (@ (class "event-phone-number")) ,phone-number))))
     )
 )
 
@@ -286,15 +287,15 @@ out:  resulting sxml for the month
 |#
 (define (gen-month-sxml/english month-en days)
   `(div (@ (class "month"))
-        (h2 ,month-en)
+        (h2 ,(string-upcase month-en))
         ,@days))
 
 #|
 Template for a day in the bilingual calendar
 |#
 (define (gen-day-sxml/english day-num day-en events-sxml)
-  `(div (@ (class "date"))
-        (h3 ,(number->string day-num) " " ,day-en)
+  `(div (@ (class "day"))
+        (h3 ,(string-titlecase day-en) " " ,(number->string day-num))
         (ul (@ (class "events-list")) ,@events-sxml)))
 
 #|
@@ -305,33 +306,34 @@ template for an event in the bilingual calendar
          [print-summary-english-accessor (get-field (hash-ref (fields-names) "print-summary-english"))]
          [event-name-accessor (get-field (hash-ref (fields-names) "event-name"))]
          [location-abbreviation-accessor (get-field (hash-ref (fields-names) "location-abbreviation"))]
-         [price-range-default (or (hash-ref (defaults) "price-range") "Free")]
-         [phone-number-default (or (hash-ref (defaults) "phone-number") "n.a.")]
          [start-time-accessor (get-field (hash-ref (fields-names) "start-time"))]
          [start-date-accessor (get-field (hash-ref (fields-names) "start-date"))]
          [price-range-accessor (get-field (hash-ref (fields-names) "price-range"))]
          [phone-number-accessor (get-field (hash-ref (fields-names) "phone-number"))]
-         [print-summary (or (print-summary-english-accessor event);first, try hope for an english summary
-                            (print-summary-french-accessor event);otherwise, fall back on the french one
-                            (event-name-accessor event))];if neither exist, use event name
-         [location-abbreviation (location-abbreviation-accessor event) ]
-         [start-time (start-time-accessor event)]
-         [price-range (or (price-range-accessor event) price-range-default)]
-         [phone-number (or (phone-number-accessor event) phone-number-default)])
+         [period (lambda (string) (and string (string-append string ". ")))]
+         [price-range-default (or (period (hash-ref (defaults) "price-range")) "")]
+         [phone-number-default (or (period (hash-ref (defaults) "phone-number")) "")]
+         [print-summary (period (or (print-summary-english-accessor event);first, try hope for an english summary
+                                    (print-summary-french-accessor event);otherwise, fall back on the french one
+                                    (event-name-accessor event)))];if neither exist, use event name
+         [location-abbreviation (period (location-abbreviation-accessor event)) ]
+         [start-time (period (~t (start-time-accessor event) "h'h'mm a"))]
+         [price-range (period (or (price-range-accessor event) price-range-default))]
+         [phone-number (period (or (phone-number-accessor event) phone-number-default))])
     `(li (@ (class "event-item"))
          (p (span (@ (class "item-marker") (style "font-family:FFDingbests")) ">")
           (span (@ (class "event-info"))
-                (span (@ (class "event-time")) ,(~t start-time "h'h'mm a")) ". "
-                (span (@ (class "location-id")) ,location-abbreviation) ". "
-                ;(span (@ (class "event-price")) ,price-range) ". "
-                (span (@ (class "event-summary")) (i ,print-summary)) ". "
-                (span (@ (class "event-phone-number")) ,phone-number) ". ")))
+                (span (@ (class "event-time")) ,start-time)
+                (span (@ (class "location-id")) ,location-abbreviation)
+                (span (@ (class "event-price")) ,price-range)
+                (span (@ (class "event-summary")) (i ,print-summary))
+                (span (@ (class "event-phone-number")) ,phone-number))))
     )
 )
 
 (define (gen-region-sxml/english region-en locations-listing-sxml months-sxml)
   `(div (@ (class "region"))
-        (h1 ,region-en)
+        (h1 ,(string-upcase region-en))
         ,locations-listing-sxml
         ,@months-sxml
         ))
@@ -360,15 +362,15 @@ out:  resulting sxml for the month
 |#
 (define (gen-month-sxml/french month-fr days-sxml)
   `(div (@ (class "month"))
-        (h2 ,month-fr)
+        (h2 ,(string-upcase month-fr))
         ,@days-sxml))
 
 #|
 Template for a day in the bilingual calendar
 |#
 (define (gen-day-sxml/french day-fr day-num events-sxml)
-  `(div (@ (class "date"))
-        (h3 ,day-fr " " ,(number->string day-num))
+  `(div (@ (class "day"))
+        (h3 ,(string-downcase day-fr) " " ,(number->string day-num))
         (ul (@ (class "events-list")) ,@events-sxml)))
 
 #|
@@ -379,33 +381,34 @@ template for an event in the bilingual calendar
          [print-summary-english-accessor (get-field (hash-ref (fields-names) "print-summary-english"))]
          [event-name-accessor (get-field (hash-ref (fields-names) "event-name"))]
          [location-abbreviation-accessor (get-field (hash-ref (fields-names) "location-abbreviation"))]
-         [price-range-default (or (hash-ref (defaults) "price-range") "Gratuit")]
-         [phone-number-default (or (hash-ref (defaults) "phone-number") "n.a.")]
          [start-time-accessor (get-field (hash-ref (fields-names) "start-time"))]
          [start-date-accessor (get-field (hash-ref (fields-names) "start-date"))]
          [price-range-accessor (get-field (hash-ref (fields-names) "price-range"))]
          [phone-number-accessor (get-field (hash-ref (fields-names) "phone-number"))]
-         [print-summary (or (print-summary-french-accessor event)
-                            (print-summary-english-accessor event);if no french summary, uses english summary
-                            (event-name-accessor event))];if neither french nor english summary, uses title of event
-         [location-abbreviation (location-abbreviation-accessor event)]
-         [start-time (start-time-accessor event)]
-         [price-range (or (price-range-accessor event) price-range-default)]
-         [phone-number (or (phone-number-accessor event) phone-number-default)])
+         [period (lambda (string) (and string (string-append string ". ")))]
+         [price-range-default (or (period (hash-ref (defaults) "price-range")) "")]
+         [phone-number-default (or (period (hash-ref (defaults) "phone-number")) "")]
+         [print-summary (period (or (print-summary-french-accessor event)
+                                    (print-summary-english-accessor event);if no french summary, uses english summary
+                                    (event-name-accessor event)))];if neither french nor english summary, uses title of event
+         [location-abbreviation (period (location-abbreviation-accessor event))]
+         [start-time (period (~t (start-time-accessor event) "h'h'mm a"))]
+         [price-range (period (or (price-range-accessor event) price-range-default))]
+         [phone-number (period (or (phone-number-accessor event) phone-number-default))])
     `(li (@ (class "event-item"))
          (p (span (@ (class "item-marker") (style "font-family:FFDingbests")) ">")
           (span (@ (class "event-info"))
-                (span (@ (class "event-time")) ,(~t start-time "h'h'mm a")) ". "
-                (span (@ (class "location-id")) ,location-abbreviation) ". "
-                ;(span (@ (class "event-price")) ,price-range) ". "
-                (span (@ (class "event-summary")) (i ,print-summary)) ". "
-                (span (@ (class "event-phone-number")) ,phone-number) ". ")))
+                (span (@ (class "event-time")) ,start-time)
+                (span (@ (class "location-id")) ,location-abbreviation)
+                (span (@ (class "event-price")) ,price-range)
+                (span (@ (class "event-summary")) (i ,print-summary))
+                (span (@ (class "event-phone-number")) ,phone-number))))
     )
 )
 
 (define (gen-region-sxml/french region-fr locations-listing-sxml months-sxml)
   `(div (@ (class "region"))
-        (h1 ,region-fr)
+        (h1 ,(string-upcase region-fr))
         ,locations-listing-sxml
         ,@months-sxml
         ))
@@ -724,8 +727,8 @@ Convert csv data read from an input file to html
    [("--en" "--english") "Generate html for the english edition" (calendar-edition "english")]
    [("--fr" "--french") "Generate html for the french edition" (calendar-edition "french")]
    #:once-each
-   [("-v" "--verbose") ("Enable verbose mode, i.e. print debugging information to standard output."
-                        "Warning: if this is enabled and a file is not specified for outputting the html,"
+   [("-v" "--verbose") ("Enable verbose mode, which print debugging information to standard output."
+                        "Warning: if this is enabled and a file is not specified for the html output,"
                         "both debug information and the html will be outputted to standard output, "
                         "and piping/redirecting the output of the program will also pipe/redirect the debug information.")
     (debug-mode #t)]
