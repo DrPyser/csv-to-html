@@ -568,15 +568,9 @@ See https://docs.racket-lang.org/reference/logging.html
 
 (current-logger logger)
 
-(void
- (thread
-  (lambda ()
-    (let loop ()
-      (let ([v (sync debug)])
-        (printf "[~a] ~a\n" (vector-ref v 0) (vector-ref v 1))
-        (flush-output)
-        (loop))))))
+(define log-output-port (make-parameter (open-output-string "default log output port")))
 
+(define debug-mode (make-parameter #f))
 
 #|
 Convert csv data read from an input file to html 
@@ -605,14 +599,22 @@ Convert csv data read from an input file to html
                            [("french") "French Print Calendar"])]
          )
 
-    ;; (display "Event Fields: ")
-    ;; (pretty-print events-columns)
-    ;; (display "Location Fields: ")
-    ;; (pretty-print locations-columns)
-    ;; (display "Example event")(pretty-print (car events))
-    ;; (display "Example location")(pretty-print (car locations))
+    ;;Running a thread to capture and print logs to log-output-port
+    (void
+     (thread
+      (lambda ()
+        (let loop ()
+          (let ([v (sync debug)])
+            (fprintf (log-output-port) "[~a] ~a\n" (vector-ref v 0) (vector-ref v 1))
+            (flush-output (log-output-port))
+            (loop))))))
 
-    ;;a hash table (region => events in this region)
+    (log-debug "Event Fields: ~s" events-columns)
+    (log-debug "Location Fields: ~s" locations-columns)
+    (log-debug "Exemple Event: ~s" (car events))
+    (log-debug "Exemple Location: ~s" (car locations))
+    
+    ;;a hash table (region => locations in this region)
     (define locations-by-region
       (for/hash ([group (group-by get-location-region locations string=?)])
         (values (get-location-region (car group)) group)))
@@ -623,11 +625,8 @@ Convert csv data read from an input file to html
         (values (get-event-region (car group)) group)))
 
     ;(pretty-print events-by-region)
-    ;; (display "Regions for the location table: ")
-    ;; (pretty-print (hash-keys locations-by-region))
-    ;; (display "Regions for the event table: ")
-    ;; (pretty-print (hash-keys events-by-region))
-    ;; (newline)
+    (log-debug "Regions for locations-by-region table: ~s" (hash-keys locations-by-region))
+    (log-debug "Regions for events-by-region table: ~s" (hash-keys events-by-region))
 
     ;;a list of sxml for each region
     (define regions-sxml
@@ -635,10 +634,15 @@ Convert csv data read from an input file to html
         (let ([region-en region]
               [region-fr (translate-region/fr region)])
 
+          (log-debug "In region ~s" region)
+          (log-debug "Number of events: ~s" (length events))
+
           ;;a hash table (date => events on this date)
           (define events-by-date
             (for/hash ([group (group-by get-date events date=?)])
               (values (get-date (car group)) group)))
+
+
 
           ;;sxml for the region's location listing
           (define locations-listing-sxml
@@ -683,6 +687,9 @@ Convert csv data read from an input file to html
               (let* ([month (->month (car dates-by-month))]
                      [month-en (month->string/en month)]
                      [month-fr (month->string/fr month)])
+
+                (log-debug "In Month: ~s (~s) (~s)" month month-en month-fr)
+
                 (case (calendar-edition)
                   [("bilingual") (gen-month-sxml/bilingual
                                   month-en month-fr
@@ -692,14 +699,22 @@ Convert csv data read from an input file to html
                                 (map (lambda (event-date) (hash-ref sxml-by-date event-date)) dates-by-month))]
                   [("french") (gen-month-sxml/french
                                   month-fr
-                                  (map (lambda (event-date) (hash-ref sxml-by-date event-date)) dates-by-month))]))))
+                                  (map (lambda (event-date) (hash-ref sxml-by-date event-date)) dates-by-month))]))))          
 
           (case (calendar-edition)
             [("bilingual") (gen-region-sxml/bilingual region-en region-fr locations-listing-sxml months-sxml)]
             [("english") (gen-region-sxml/english region-en locations-listing-sxml months-sxml)]
             [("french") (gen-region-sxml/french region-fr locations-listing-sxml months-sxml)]))))
-
-    (write-html (gen-document-sxml regions-sxml "Bilingual calendar listing") output-port)))
+    
+    (let* ([doc-title (case (calendar-edition)
+                        [("bilingual") "Bilingual Calendar Listing"]
+                        [("english") "English Calendar Listing"]
+                        [("french") "French Calendar Listing"])]
+           [document (gen-document-sxml regions-sxml doc-title)])
+      (log-debug "debug-mode? ~a" (debug-mode))
+      (if (debug-mode) (display (get-output-string (log-output-port)) (current-output-port)) (void));if debug-mode is true, printing logs to stdout
+      (write-html document output-port))
+    ))
 
 (define main
   (command-line
@@ -709,6 +724,11 @@ Convert csv data read from an input file to html
    [("--en" "--english") "Generate html for the english edition" (calendar-edition "english")]
    [("--fr" "--french") "Generate html for the french edition" (calendar-edition "french")]
    #:once-each
+   [("-v" "--verbose") ("Enable verbose mode, i.e. print debugging information to standard output."
+                        "Warning: if this is enabled and a file is not specified for outputting the html,"
+                        "both debug information and the html will be outputted to standard output, "
+                        "and piping/redirecting the output of the program will also pipe/redirect the debug information.")
+    (debug-mode #t)]
    [("-f" "--fields-name") field-name-string
     ("Name of the csv fields that are used to generate the html." "The format is \"((field . |fieldname|) ...)\". See doc for details."
      "'field' can be one of: "
