@@ -147,9 +147,9 @@ out: list: list of number representing days (1-31) in which events happen for th
 
 
 #|
-Parses the string values of an event into more useful representation(e.g. dates and times as date and time objects)
-in: row : list: (list of strings representing data fields for the event)
-out: parsed row (list of values, either as strings or as racket representations)
+Parses the string values of an event into more useful data representation(e.g. dates and times as date and time objects)
+in: row : list: association list (mapping of field to value) representing data fields for the event/location
+out: list: parsed row (same as input, except with some values transformed into another representation)
 |#
 (define (parse-row row)
   (let ([date-field? (lambda (field) (string=? field (hash-ref (fields-names) "start-date")))]
@@ -210,31 +210,37 @@ out:  resulting sxml for the month
 
 #|
 Template for a day in the bilingual calendar
+in: day-fr: string: day of the week in french
+in: day-en: string: day of the week in english
+in: day-num: number: day of the month as a number(1-31)
+in: events: list: list of sxml data for the events on that day
+out: sxml data for the day
 |#
-(define (gen-day-sxml/bilingual day-fr day-num day-en events)
+(define (gen-day-sxml/bilingual day-fr day-num day-en events-sxml)
   `(div (@ (class "date"))
         (h3 ,day-fr " " ,(number->string day-num) " " ,day-en)
-        (ul (@ (class "events-list")) ,@events)))
+        (ul (@ (class "events-list")) ,@events-sxml)))
 
 #|
 template for an event in the bilingual calendar
+in: event: a association list representing the fields of a row of the parsed event csv
+out: sxml data for the event
 |#
 (define (gen-event-sxml/bilingual event)
   (let* ([print-summary-french-accessor (get-field (hash-ref (fields-names) "print-summary-french"))]
          [print-summary-english-accessor (get-field (hash-ref (fields-names) "print-summary-english"))]
          [event-name-accessor (get-field (hash-ref (fields-names) "event-name"))]
          [location-abbreviation-accessor (get-field (hash-ref (fields-names) "location-abbreviation"))]
-         [location-abbreviation-default (hash-ref (defaults) "location-abbreviation")]
-         [price-range-default (hash-ref (defaults) "price-range")]
-         [phone-number-default (hash-ref (defaults) "phone-number")]
+         [price-range-default (or (hash-ref (defaults) "price-range") "Free/Gratuit")]
+         [phone-number-default (or (hash-ref (defaults) "phone-number") "n.a.")]
          [start-time-accessor (get-field (hash-ref (fields-names) "start-time"))]
          [start-date-accessor (get-field (hash-ref (fields-names) "start-date"))]
          [price-range-accessor (get-field (hash-ref (fields-names) "price-range"))]
          [phone-number-accessor (get-field (hash-ref (fields-names) "phone-number"))]
-         [print-summary (or (print-summary-french-accessor event)
-                            (print-summary-english-accessor event);if no french summary, uses english summary
-                            (event-name-accessor event))];if neither french nor english summary, uses title of event
-         [location-abbreviation (or (location-abbreviation-accessor event) location-abbreviation-default)]
+         [print-summary (or (print-summary-french-accessor event);hope for a french summary
+                            (print-summary-english-accessor event);otherwise, use english summary
+                            (event-name-accessor event))];if neither french nor english summary, use event name
+         [location-abbreviation (location-abbreviation-accessor event)]
          [start-time (start-time-accessor event)]
          [price-range (or (price-range-accessor event) price-range-default)]
          [phone-number (or (phone-number-accessor event) phone-number-default)])
@@ -286,10 +292,10 @@ out:  resulting sxml for the month
 #|
 Template for a day in the bilingual calendar
 |#
-(define (gen-day-sxml/english day-num day-en events)
+(define (gen-day-sxml/english day-num day-en events-sxml)
   `(div (@ (class "date"))
         (h3 ,(number->string day-num) " " ,day-en)
-        (ul (@ (class "events-list")) ,@events)))
+        (ul (@ (class "events-list")) ,@events-sxml)))
 
 #|
 template for an event in the bilingual calendar
@@ -299,17 +305,16 @@ template for an event in the bilingual calendar
          [print-summary-english-accessor (get-field (hash-ref (fields-names) "print-summary-english"))]
          [event-name-accessor (get-field (hash-ref (fields-names) "event-name"))]
          [location-abbreviation-accessor (get-field (hash-ref (fields-names) "location-abbreviation"))]
-         [location-abbreviation-default (hash-ref (defaults) "location-abbreviation")]
-         [price-range-default (hash-ref (defaults) "price-range")]
-         [phone-number-default (hash-ref (defaults) "phone-number")]
+         [price-range-default (or (hash-ref (defaults) "price-range") "Free")]
+         [phone-number-default (or (hash-ref (defaults) "phone-number") "n.a.")]
          [start-time-accessor (get-field (hash-ref (fields-names) "start-time"))]
          [start-date-accessor (get-field (hash-ref (fields-names) "start-date"))]
          [price-range-accessor (get-field (hash-ref (fields-names) "price-range"))]
          [phone-number-accessor (get-field (hash-ref (fields-names) "phone-number"))]
-         [print-summary (or (print-summary-french-accessor event)
-                            (print-summary-english-accessor event);if no french summary, uses english summary
-                            (event-name-accessor event))];if neither french nor english summary, uses title of event
-         [location-abbreviation (or (location-abbreviation-accessor event) location-abbreviation-default)]
+         [print-summary (or (print-summary-english-accessor event);first, try hope for an english summary
+                            (print-summary-french-accessor event);otherwise, fall back on the french one
+                            (event-name-accessor event))];if neither exist, use event name
+         [location-abbreviation (location-abbreviation-accessor event) ]
          [start-time (start-time-accessor event)]
          [price-range (or (price-range-accessor event) price-range-default)]
          [phone-number (or (phone-number-accessor event) phone-number-default)])
@@ -353,18 +358,18 @@ in: month-fr : string : name of the month in french
 in: days : list : list of sxml data for each days in the month
 out:  resulting sxml for the month
 |#
-(define (gen-month-sxml/french month-fr days)
+(define (gen-month-sxml/french month-fr days-sxml)
   `(div (@ (class "month"))
         (h2 ,month-fr)
-        ,@days))
+        ,@days-sxml))
 
 #|
 Template for a day in the bilingual calendar
 |#
-(define (gen-day-sxml/french day-fr day-num events)
+(define (gen-day-sxml/french day-fr day-num events-sxml)
   `(div (@ (class "date"))
         (h3 ,day-fr " " ,(number->string day-num))
-        (ul (@ (class "events-list")) ,@events)))
+        (ul (@ (class "events-list")) ,@events-sxml)))
 
 #|
 template for an event in the bilingual calendar
@@ -374,9 +379,8 @@ template for an event in the bilingual calendar
          [print-summary-english-accessor (get-field (hash-ref (fields-names) "print-summary-english"))]
          [event-name-accessor (get-field (hash-ref (fields-names) "event-name"))]
          [location-abbreviation-accessor (get-field (hash-ref (fields-names) "location-abbreviation"))]
-         [location-abbreviation-default (hash-ref (defaults) "location-abbreviation")]
-         [price-range-default (hash-ref (defaults) "price-range")]
-         [phone-number-default (hash-ref (defaults) "phone-number")]
+         [price-range-default (or (hash-ref (defaults) "price-range") "Gratuit")]
+         [phone-number-default (or (hash-ref (defaults) "phone-number") "n.a.")]
          [start-time-accessor (get-field (hash-ref (fields-names) "start-time"))]
          [start-date-accessor (get-field (hash-ref (fields-names) "start-date"))]
          [price-range-accessor (get-field (hash-ref (fields-names) "price-range"))]
@@ -384,7 +388,7 @@ template for an event in the bilingual calendar
          [print-summary (or (print-summary-french-accessor event)
                             (print-summary-english-accessor event);if no french summary, uses english summary
                             (event-name-accessor event))];if neither french nor english summary, uses title of event
-         [location-abbreviation (or (location-abbreviation-accessor event) location-abbreviation-default)]
+         [location-abbreviation (location-abbreviation-accessor event)]
          [start-time (start-time-accessor event)]
          [price-range (or (price-range-accessor event) price-range-default)]
          [phone-number (or (phone-number-accessor event) phone-number-default)])
@@ -426,8 +430,8 @@ template for an event in the bilingual calendar
 
 #|
 returns a getter function for 'field'
-in: field (should be a string which is the name of a column of the row)
-out: getter function which takes a row as input and returns the value of the field as output
+in: field: string: (should be a string which is the name of a column of the row)
+out: getter function which takes a row (association list) as input and returns the value of the field as output
 |#
 (define (get-field field)
   (lambda (row)
@@ -472,33 +476,6 @@ out: hash table: a mapping from date to list of events
     ["Ontario (elsewhere)" "Ontario (ailleurs)"]
     [_ region-en]))
 
-;; #|
-;; These parameters define the name of the fields used to generate the html
-;; They might be changed to match the columns names given in the csv through command line options
-;; |#
-;; (define start-date-field (make-parameter "_event_start_date"))
-;; (define start-time-field (make-parameter "_event_start_time"))
-;; (define phone-number-field (make-parameter "event-phone-number"))
-;; (define event-name-field (make-parameter "Title"))
-;; (define print-summary-english-field (make-parameter "print-summary-english"))
-;; (define print-summary-french-field (make-parameter "print-summary-french"))
-;; (define price-range-field (make-parameter "price-range"))
-;; (define event-region-field (make-parameter "_location_region"))
-;; (define location-region-field (make-parameter "_location_region"))
-;; (define location-city-field (make-parameter "_location_town"))
-;; (define location-abbreviation-field (make-parameter "abbreviation"))
-;; (define event-abbreviation-field (make-parameter "abbreviation"))
-;; (define location-address-field (make-parameter "_location_address"))
-;; (define location-name-field (make-parameter "Title"))
-;; (define event-location-id-field (make-parameter "_location_id"))
-;; (define location-id-field (make-parameter "_location_id"))
-
-;; (define date-format (make-parameter "M/d/yyyy"))
-;; (define time-format (make-parameter "H:mm:ss"))
-;; (define price-range-default (make-parameter "Free/Gratuit"))
-;; (define phone-number-default (make-parameter ""))
-;; (define location-abbreviation-default (make-parameter "no abbrev."))
-
 (define calendar-edition (make-parameter "bilingual"))
 
 (define html-output-port (make-parameter (current-output-port)))
@@ -529,9 +506,9 @@ out: hash table: a mapping from date to list of events
    (hash "calendar-edition" "bilingual"
          "date-format" "M/d/yyyy"
          "time-format" "H:mm:ss"
-         "price-range" "Free/Gratuit"
-         "phone-number" "n.a."
-         "location-abbreviation" "n.a."
+         "price-range" #f
+         "phone-number" #f
+         "location-abbreviation" #f
          )))
 
 #|
@@ -733,7 +710,7 @@ Convert csv data read from an input file to html
    [("--fr" "--french") "Generate html for the french edition" (calendar-edition "french")]
    #:once-each
    [("-f" "--fields-name") field-name-string
-    ("Name of the csv fields that are used to generate the html." "The format is \"field:field name;...\"."
+    ("Name of the csv fields that are used to generate the html." "The format is \"((field . |fieldname|) ...)\". See doc for details."
      "'field' can be one of: "
      "    'start-date': start date of the event,"
      "    'start-time': start time of the event,"
