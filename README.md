@@ -41,6 +41,8 @@ How to use
   simply ommit the "-o" flag:
   `csv-to-html path/to/events-csv path/to/locations-csv`
 * To see all options and help: `csv-to-html -h`
+  * To see and navigate(scroll, search terms) more easily, 
+    you can pipe it to another program such as `less`: `csv-to-html -h | less`
 * To print default values of parameters(including fields names): `csv-to-html --print-defaults`
 * To change date format: `csv-to-html -d date-format-string` 
   (see [this Link](http://unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table) for specifications on valid date and time format syntax).

@@ -45,20 +45,43 @@
 ;;A reader using the reader-spec
 (define csv-reader (make-csv-reader-maker reader-spec))
 
-;;This is a macro which, given a list of params and a template, parameterize the template as a function.
-;;Given values for its parameters, the function generates sxml by replacing each unquoted variable in the template by its value given as a argument.
-;;That is, the 'params' parameter to the macro is a list of variable which appears in the template.
-(define-syntax-rule (make-sxml-gen params sxml-template) 
-  (lambda params sxml-template))
+;;;-----------------------------------------------parameters-------------------------------------------------------------------
+(define calendar-edition (make-parameter "bilingual"))
 
+(define html-output-port (make-parameter (current-output-port)))
 
-;; (define (replace-placeholders bindings)
-;;   (sxml:modify (list "// unquote" (lambda (node ctx root)
-;;                                     (match (assoc (cadr node) bindings)
-;;                                       [(cons _ value) value]
-;;                                       [#f (error (format "Undefined placeholder ~a" (cadr node)))])))))
+;;the fields' names
+(define fields-names
+  (make-parameter
+   (hash "location-name" "Title"
+         "location-city" "_location_town"
+         "location-region" "_location_region"
+         "location-address" "_location_address"
+         "event-region" "_location_region"
+         "event-name" "Title"
+         "event-abbreviation" "abbreviation"
+         "location-abbreviation" "abbreviation"
+         "location-id" "_location_id"
+         "event-location-id" "_location_id"
+         "price-range" "price-range"
+         "phone-number" "event-phone-number"
+         "start-date" "_event_start_date"
+         "start-time" "_event_start_time"
+         "print-summary-english" "print-summary-english"
+         "print-summary-french" "print-summary-french")))
 
+;;Some default information
+(define defaults
+  (make-parameter
+   (hash "calendar-edition" "bilingual"
+         "date-format" "M/d/yyyy"
+         "time-format" "H:mm:ss"
+         "price-range" #f
+         "phone-number" #f
+         "location-abbreviation" #f
+         )))
 
+;;;-----------------------------------------------------------
 
 
 
@@ -188,12 +211,12 @@ out: sxml document for the calendar listing
      (head
       (meta (@ (charset "utf8"))) (title ,title)
       (style
-          ".events-list {list-style-type: none; margin:0; padding: 0;}"
-        ".day h3 {color:#1d328b;}"
-        ".month h2 {color:#1d328b;}"
-        ".event-marker {font-family: FFDingbests;}"
-        ".event-info {display:inline-block; text-indent: 1em;}"
-        ".location-info {margin: 0;}"))
+       ".events-list {list-style-type: none; margin:0; padding: 0;}"
+       ".day h3 {color:#1d328b;}"
+       ".month h2 {color:#1d328b;}"
+       ".event-marker {font-family: FFDingbests;}"
+       ".event-info {display:inline-block;}"
+       ".location-info {margin: 0;}"))
      (body ,@months))))
 
 #|
@@ -235,24 +258,29 @@ out: sxml data for the event
          [start-date-accessor (get-field (hash-ref (fields-names) "start-date"))]
          [price-range-accessor (get-field (hash-ref (fields-names) "price-range"))]
          [phone-number-accessor (get-field (hash-ref (fields-names) "phone-number"))]
+         [event-region-accessor (get-field (hash-ref (fields-names) "event-region"))]
          [period (lambda (string) (and string (string-append string ". ")))]
          [price-range-default (or (period (hash-ref (defaults) "price-range")) "")]
          [phone-number-default (or (period (hash-ref (defaults) "phone-number")) "")]
+         [event-region (event-region-accessor event)]
          [print-summary (period (or (print-summary-french-accessor event);hope for a french summary
                                      (print-summary-english-accessor event);otherwise, use english summary
                                      (event-name-accessor event)))];if neither french nor english summary, use event name
          [location-abbreviation (period (location-abbreviation-accessor event))]
-         [start-time (period (~t (start-time-accessor event) "h'h'mm a"))]
+         [start-time (period (~t (start-time-accessor event) "H'h'mm"))]
          [price-range (or (period (price-range-accessor event)) price-range-default)]
          [phone-number (or (period (phone-number-accessor event)) phone-number-default)])
     `(li (@ (class "event-item"))
-         (p (span (@ (class "item-marker") (style "font-family:FFDingbests")) ">")
-          (span (@ (class "event-info"))
-                (span (@ (class "event-time")) ,start-time)
-                (span (@ (class "location-id")) ,location-abbreviation)
-                (span (@ (class "event-price")) ,price-range)
-                (span (@ (class "event-summary")) (i ,print-summary))
-                (span (@ (class "event-phone-number")) ,phone-number))))
+         (p ,(if (string=? "Greater Montreal Area" event-region)
+                 `(span (@ (class "item-marker")) ">")
+                 `(span (@ (class "item-marker")) ,(format "~a" (->day (start-date-accessor event)))))
+            (span (@ (class "event-info"))
+                  (span (@ (class "tab-character")) "???TAB???")
+                  (span (@ (class "event-time")) ,start-time)
+                  (span (@ (class "location-id")) ,location-abbreviation)
+                  (span (@ (class "event-price")) ,price-range)
+                  (span (@ (class "event-summary")) ,print-summary)
+                  (span (@ (class "event-phone-number")) ,phone-number))))
     )
 )
 
@@ -291,7 +319,7 @@ out:  resulting sxml for the month
         ,@days))
 
 #|
-Template for a day in the bilingual calendar
+Template for a day in the english calendar
 |#
 (define (gen-day-sxml/english day-num day-en events-sxml)
   `(div (@ (class "day"))
@@ -299,7 +327,7 @@ Template for a day in the bilingual calendar
         (ul (@ (class "events-list")) ,@events-sxml)))
 
 #|
-template for an event in the bilingual calendar
+template for an event in the english calendar
 |#
 (define (gen-event-sxml/english event)
   (let* ([print-summary-french-accessor (get-field (hash-ref (fields-names) "print-summary-french"))]
@@ -310,24 +338,29 @@ template for an event in the bilingual calendar
          [start-date-accessor (get-field (hash-ref (fields-names) "start-date"))]
          [price-range-accessor (get-field (hash-ref (fields-names) "price-range"))]
          [phone-number-accessor (get-field (hash-ref (fields-names) "phone-number"))]
+         [event-region-accessor (get-field (hash-ref (fields-names) "event-region"))]
          [period (lambda (string) (and string (string-append string ". ")))]
          [price-range-default (or (period (hash-ref (defaults) "price-range")) "")]
          [phone-number-default (or (period (hash-ref (defaults) "phone-number")) "")]
+         [event-region (event-region-accessor event)]
          [print-summary (period (or (print-summary-english-accessor event);first, try hope for an english summary
                                     (print-summary-french-accessor event);otherwise, fall back on the french one
                                     (event-name-accessor event)))];if neither exist, use event name
          [location-abbreviation (period (location-abbreviation-accessor event)) ]
-         [start-time (period (~t (start-time-accessor event) "h'h'mm a"))]
+         [start-time (period (~t (start-time-accessor event) "h:mma" #:locale "en"))]
          [price-range (period (or (price-range-accessor event) price-range-default))]
          [phone-number (period (or (phone-number-accessor event) phone-number-default))])
     `(li (@ (class "event-item"))
-         (p (span (@ (class "item-marker") (style "font-family:FFDingbests")) ">")
-          (span (@ (class "event-info"))
-                (span (@ (class "event-time")) ,start-time)
-                (span (@ (class "location-id")) ,location-abbreviation)
-                (span (@ (class "event-price")) ,price-range)
-                (span (@ (class "event-summary")) (i ,print-summary))
-                (span (@ (class "event-phone-number")) ,phone-number))))
+         (p ,(if (string=? "Greater Montreal Area" event-region)
+                 `(span (@ (class "item-marker")) ">")
+                 `(span (@ (class "item-marker")) ,(format "~a" (->day (start-date-accessor event)))))
+            (span (@ (class "event-info"))
+                  (span (@ (class "tab-character")) "???TAB???")
+                  (span (@ (class "event-time")) ,start-time)
+                  (span (@ (class "location-id")) ,location-abbreviation)
+                  (span (@ (class "event-price")) ,price-range)
+                  (span (@ (class "event-summary")) ,print-summary)
+                  (span (@ (class "event-phone-number")) ,phone-number))))
     )
 )
 
@@ -373,6 +406,9 @@ Template for a day in the bilingual calendar
         (h3 ,(string-downcase day-fr) " " ,(number->string day-num))
         (ul (@ (class "events-list")) ,@events-sxml)))
 
+(define (period string)
+  (and string (string-append string ".")))
+
 #|
 template for an event in the bilingual calendar
 |#
@@ -381,28 +417,32 @@ template for an event in the bilingual calendar
          [print-summary-english-accessor (get-field (hash-ref (fields-names) "print-summary-english"))]
          [event-name-accessor (get-field (hash-ref (fields-names) "event-name"))]
          [location-abbreviation-accessor (get-field (hash-ref (fields-names) "location-abbreviation"))]
-         [start-time-accessor (get-field (hash-ref (fields-names) "start-time"))]
-         [start-date-accessor (get-field (hash-ref (fields-names) "start-date"))]
+         [start-time-accessor get-start-time]
+         [start-date-accessor get-start-date]
          [price-range-accessor (get-field (hash-ref (fields-names) "price-range"))]
          [phone-number-accessor (get-field (hash-ref (fields-names) "phone-number"))]
-         [period (lambda (string) (and string (string-append string ". ")))]
+         [event-region-accessor (get-field (hash-ref (fields-names) "event-region"))]
          [price-range-default (or (period (hash-ref (defaults) "price-range")) "")]
          [phone-number-default (or (period (hash-ref (defaults) "phone-number")) "")]
+         [event-region (event-region-accessor event)]
          [print-summary (period (or (print-summary-french-accessor event)
                                     (print-summary-english-accessor event);if no french summary, uses english summary
                                     (event-name-accessor event)))];if neither french nor english summary, uses title of event
          [location-abbreviation (period (location-abbreviation-accessor event))]
-         [start-time (period (~t (start-time-accessor event) "h'h'mm a"))]
+         [start-time (period (~t (start-time-accessor event) "H'h'mm"))]
          [price-range (period (or (price-range-accessor event) price-range-default))]
          [phone-number (period (or (phone-number-accessor event) phone-number-default))])
     `(li (@ (class "event-item"))
-         (p (span (@ (class "item-marker") (style "font-family:FFDingbests")) ">")
-          (span (@ (class "event-info"))
-                (span (@ (class "event-time")) ,start-time)
-                (span (@ (class "location-id")) ,location-abbreviation)
-                (span (@ (class "event-price")) ,price-range)
-                (span (@ (class "event-summary")) (i ,print-summary))
-                (span (@ (class "event-phone-number")) ,phone-number))))
+         (p ,(if (string=? "Greater Montreal Area" event-region)
+                 `(span (@ (class "item-marker")) ">")
+                 `(span (@ (class "item-marker")) ,(format "~a" (->day (start-date-accessor event)))))
+            (span (@ (class "event-info"))
+                  (span (@ (class "tab-character")) "???TAB???")
+                  (span (@ (class "event-time")) ,start-time)
+                  (span (@ (class "location-id")) ,location-abbreviation)
+                  (span (@ (class "event-price")) ,price-range)
+                  (span (@ (class "event-summary")) ,print-summary)
+                  (span (@ (class "event-phone-number")) ,phone-number))))
     )
 )
 
@@ -442,6 +482,10 @@ out: getter function which takes a row (association list) as input and returns t
       [(cons _ value) value]
       [#f (error (format "Missing field ~a in row ~a" field row))])))
 
+(define get-start-date (get-field (hash-ref (fields-names) "start-date")))
+(define get-start-time (get-field (hash-ref (fields-names) "start-time")))
+
+
 #|
 This returns a hash table mapping from a month(number) to a list of events occuring in that month
 in: events: list of list: list of events(which are association lists of field name/field value)
@@ -479,40 +523,7 @@ out: hash table: a mapping from date to list of events
     ["Ontario (elsewhere)" "Ontario (ailleurs)"]
     [_ region-en]))
 
-(define calendar-edition (make-parameter "bilingual"))
 
-(define html-output-port (make-parameter (current-output-port)))
-
-;;the fields' names
-(define fields-names
-  (make-parameter
-   (hash "location-name" "Title"
-         "location-city" "_location_town"
-         "location-region" "_location_region"
-         "location-address" "_location_address"
-         "event-region" "_location_region"
-         "event-name" "Title"
-         "event-abbreviation" "abbreviation"
-         "location-abbreviation" "abbreviation"
-         "location-id" "_location_id"
-         "event-location-id" "_location_id"
-         "price-range" "price-range"
-         "phone-number" "event-phone-number"
-         "start-date" "_event_start_date"
-         "start-time" "_event_start_time"
-         "print-summary-english" "print-summary-english"
-         "print-summary-french" "print-summary-french")))
-
-;;Some default information
-(define defaults
-  (make-parameter
-   (hash "calendar-edition" "bilingual"
-         "date-format" "M/d/yyyy"
-         "time-format" "H:mm:ss"
-         "price-range" #f
-         "phone-number" #f
-         "location-abbreviation" #f
-         )))
 
 #|
 Transforms the s-expression string representing an association list, into an actual association list.
@@ -668,41 +679,58 @@ Convert csv data read from an input file to html
             (for/hash ([(key events) events-by-date]);key is the date
               (let* ([day (->day key)]
                      [day-en (~t key "EEEE" #:locale "en")];name of the day(monday-sunday) in english
-                     [day-fr (~t key "EEEE" #:locale "fr")])
+                     [day-fr (~t key "EEEE" #:locale "fr")]
+                     [sorted-events (sort events time<? #:key get-start-time)])
                 (values key
-                        (case (calendar-edition)
-                          [("bilingual") (gen-day-sxml/bilingual
-                                          day-fr day day-en
-                                          (map gen-event-sxml/bilingual
-                                               (sort events time<? #:key (get-field (hash-ref (fields-names) "start-time")))))]
-                          [("english") (gen-day-sxml/english
-                                        day day-en
-                                        (map gen-event-sxml/english
-                                             (sort events time<? #:key (get-field (hash-ref (fields-names) "start-time")))))]
-                          [("french") (gen-day-sxml/french
-                                       day-fr day 
-                                        (map gen-event-sxml/french
-                                             (sort events time<? #:key (get-field (hash-ref (fields-names) "start-time")))))])))))
+                        (if (string=? region "Greater Montreal Area")
+                            (case (calendar-edition)
+                              [("bilingual") (gen-day-sxml/bilingual
+                                              day-fr day day-en
+                                              (map gen-event-sxml/bilingual sorted-events))]
+                              [("english") (gen-day-sxml/english
+                                            day day-en
+                                            (map gen-event-sxml/english sorted-events))]
+                              [("french") (gen-day-sxml/french
+                                           day-fr day 
+                                           (map gen-event-sxml/french sorted-events))])
+
+                            (case (calendar-edition)
+                              [("bilingual") `(div (@ (class "day"))
+                                                   (ul (@ (class "events-list"))
+                                                       ,@(map gen-event-sxml/bilingual sorted-events)))]
+                                                              
+                              [("english") `(div (@ (class "day"))
+                                                 (ul (@ (class "events-list"))
+                                                     ,@(map gen-event-sxml/english
+                                                            sorted-events)))]
+                              [("french") `(div (@ (class "day")) 
+                                                (ul (@ (class "events-list"))
+                                                    ,@(map gen-event-sxml/french
+                                                           sorted-events)))])
+                            )
+                        ))))
 
           ;;a list of sxml data for each month in order of months(ascending)
           (define months-sxml
             (for/list ([dates-by-month (sort (group-by ->month (hash-keys sxml-by-date) =) date<? #:key car)]);list of dates grouped by month, sorted
               (let* ([month (->month (car dates-by-month))]
                      [month-en (month->string/en month)]
-                     [month-fr (month->string/fr month)])
+                     [month-fr (month->string/fr month)]
+                     [sorted-dates (sort dates-by-month date<? )]
+                     )
 
                 (log-debug "In Month: ~s (~s) (~s)" month month-en month-fr)
 
                 (case (calendar-edition)
                   [("bilingual") (gen-month-sxml/bilingual
                                   month-en month-fr
-                                  (map (lambda (event-date) (hash-ref sxml-by-date event-date)) dates-by-month))]
+                                  (map (lambda (event-date) (hash-ref sxml-by-date event-date)) sorted-dates))]
                   [("english") (gen-month-sxml/english
                                 month-en
-                                (map (lambda (event-date) (hash-ref sxml-by-date event-date)) dates-by-month))]
+                                (map (lambda (event-date) (hash-ref sxml-by-date event-date)) sorted-dates))]
                   [("french") (gen-month-sxml/french
                                   month-fr
-                                  (map (lambda (event-date) (hash-ref sxml-by-date event-date)) dates-by-month))]))))          
+                                  (map (lambda (event-date) (hash-ref sxml-by-date event-date)) sorted-dates))]))))          
 
           (case (calendar-edition)
             [("bilingual") (gen-region-sxml/bilingual region-en region-fr locations-listing-sxml months-sxml)]
