@@ -10,6 +10,7 @@ Dependencies
 
 How to use
 ------------
+
 * TL;DR: Open a terminal. The program's command should be available through the terminal(type a few characters of the name, and tab two times to see if it comes up).
   In this case:  
       * for the bilingual calendar: `csv-to-html --bi -o path/to/output-file  path/to/events-csv path/to/locations-csv`  
@@ -36,43 +37,19 @@ How to use
       To list files and folders in current directory, use `ls`.
       To list files and folders of another directory, use `ls path/to/folder`.    
   * The "-o" option specifies the path of the output file. Without that option, the html is printed to the standard output(see below)
-  
+
 * To print to standard output(which you can redirect to a file with `> filename` or pipe into another program with `| programname ...`),
   simply ommit the "-o" flag:
   `csv-to-html path/to/events-csv path/to/locations-csv`
+  
 * To see all options and help: `csv-to-html -h`
   * To see and navigate(scroll, search terms) more easily, 
     you can pipe it to another program such as `less`: `csv-to-html -h | less`
+
 * To print default values of parameters(including fields names): `csv-to-html --print-defaults`
-* To change date format: `csv-to-html -d date-format-string` 
-  (see [this Link](http://unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table) for specifications on valid date and time format syntax).
-  The date format string must match the format of the dates in the event's csv
-  * Example of valid date format strings: 
-    - "M/d/yyyy" (example of date matching this format: "1/2/1993", "12/23/2012")
-    - "MM/dd/yyyy" (example of dates matching this format: "01/01/2016", "12/04/2005")
-    - "yyyy-MM-dd" (example of dates matching this format: "2016-01-01", "2005-04-12")
-  
-* To change time format: `csv-to-html -t time-format-string` 
-  (see [this Link](http://unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table) 
-  for specifications on valid date and time format syntax).
-  The time format string must match the format of the times in the event's csv. The format of the time strings in the csv must be consistent.
-  * Example of valid date format strings: 
-    - "HH:mm:ss" (example of times matching this format: "14:12:00", "04:04:04")
-* To change values of fields' names: `csv-to-html -f s-expression-for-fields-names` 
-  where 's-expression-for-fields-names' is a double-quoted string with this syntax: `"((field . |field-name|) ...)"`
-  * Each field specification is in a pair of parentheses, 
-  * the field and the field's name are separated with spaces and a dot: `(field . |fieldname|)`.__
-  * The `|` characters before and after the field name are to escape the field name, 
-    in case it contains special characters. 
-  * Examples: `"((start-date . |_event_start_date|) (start-time . |_event_start_time|))"`
-  * Alternatively, you can change the fields names of the csv so that they match the defaults of the program.
-  * Also alternatively, you can change the default values of the program itself.
-* To change default values for fields which might be missing: `csv-to-html --defaults s-exoression-for-default-values`
-  `s-expression-for-default-values` is a double-quoted string with the same syntax as for the fields names(see above).
-  * Fields which accept default values are:
-    * `phone-number`, by default "n.a."
-    * `price-range`, by default "Free/Gratuit" for bilingual calendar, "Free" for english and "Gratuit" for french
     
-  
+* To see debuggin information during the program execution, add the "-v" flag.
+  `csv-to-html -v [other options and filesnmaes]`
+  The debugging info will be printed on the terminal standard output.
   
   
