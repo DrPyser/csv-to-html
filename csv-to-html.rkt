@@ -253,7 +253,7 @@ out: sxml data for the event
   (let* ([print-summary-french-accessor (get-field (hash-ref (fields-names) "print-summary-french"))]
          [print-summary-english-accessor (get-field (hash-ref (fields-names) "print-summary-english"))]
          [event-name-accessor (get-field (hash-ref (fields-names) "event-name"))]
-         [location-abbreviation-accessor (get-field (hash-ref (fields-names) "location-abbreviation"))]         
+         [location-abbreviation-accessor (get-field (hash-ref (fields-names) "location-abbreviation"))]
          [start-time-accessor (get-field (hash-ref (fields-names) "start-time"))]
          [start-date-accessor (get-field (hash-ref (fields-names) "start-date"))]
          [price-range-accessor (get-field (hash-ref (fields-names) "price-range"))]
@@ -587,7 +587,7 @@ See https://docs.racket-lang.org/reference/logging.html
 (define debug-mode (make-parameter #f))
 
 #|
-Convert csv data read from an input file to html 
+Convert csv data read from an input file to html
 |#
 (define (csv->html events-csv-file-path locations-csv-file-path [html-file-path #f])
   (let* ([events-csv-input-port (open-input-file events-csv-file-path)]
@@ -627,11 +627,12 @@ Convert csv data read from an input file to html
     (log-debug "Location Fields: ~s" locations-columns)
     (log-debug "Exemple Event: ~s" (car events))
     (log-debug "Exemple Location: ~s" (car locations))
-    
+
     ;;a hash table (region => locations in this region)
     (define locations-by-region
       (for/hash ([group (group-by get-location-region locations string=?)])
-        (values (get-location-region (car group)) group)))
+        (let ([location-abbreviation-accessor (get-field (hash-ref (fields-names) "location-abbreviation"))])
+          (values (get-location-region (car group)) (sort group string<? #:key location-abbreviation-accessor)))))
 
     ;;a hash table (region => events in this region)
     (define events-by-region
@@ -691,19 +692,19 @@ Convert csv data read from an input file to html
                                             day day-en
                                             (map gen-event-sxml/english sorted-events))]
                               [("french") (gen-day-sxml/french
-                                           day-fr day 
+                                           day-fr day
                                            (map gen-event-sxml/french sorted-events))])
 
                             (case (calendar-edition)
                               [("bilingual") `(div (@ (class "day"))
                                                    (ul (@ (class "events-list"))
                                                        ,@(map gen-event-sxml/bilingual sorted-events)))]
-                                                              
+
                               [("english") `(div (@ (class "day"))
                                                  (ul (@ (class "events-list"))
                                                      ,@(map gen-event-sxml/english
                                                             sorted-events)))]
-                              [("french") `(div (@ (class "day")) 
+                              [("french") `(div (@ (class "day"))
                                                 (ul (@ (class "events-list"))
                                                     ,@(map gen-event-sxml/french
                                                            sorted-events)))])
@@ -730,13 +731,13 @@ Convert csv data read from an input file to html
                                 (map (lambda (event-date) (hash-ref sxml-by-date event-date)) sorted-dates))]
                   [("french") (gen-month-sxml/french
                                   month-fr
-                                  (map (lambda (event-date) (hash-ref sxml-by-date event-date)) sorted-dates))]))))          
+                                  (map (lambda (event-date) (hash-ref sxml-by-date event-date)) sorted-dates))]))))
 
           (case (calendar-edition)
             [("bilingual") (gen-region-sxml/bilingual region-en region-fr locations-listing-sxml months-sxml)]
             [("english") (gen-region-sxml/english region-en locations-listing-sxml months-sxml)]
             [("french") (gen-region-sxml/french region-fr locations-listing-sxml months-sxml)]))))
-    
+
     (let* ([doc-title (case (calendar-edition)
                         [("bilingual") "Bilingual Calendar Listing"]
                         [("english") "English Calendar Listing"]
@@ -795,7 +796,7 @@ Convert csv data read from an input file to html
      "    location-address: \"_location_address\""
      "    location-id: \"_location_id\""
      "    event-location-id: \"_location_id\""
-     
+
      )
     (set-fields-names field-name-string)]
    [("-d" "--date-format") date-format-string
